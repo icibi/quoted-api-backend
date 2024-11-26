@@ -1,10 +1,8 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
-using backend.Model;
+using backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace backend.Controllers
 {
@@ -14,104 +12,108 @@ namespace backend.Controllers
     {
         private readonly IAmazonDynamoDB _dynamoDbClient;
 
-        public AuthController(IAmazonDynamoDB dynamoDbClient)
+        public AuthController()
         {
-            _dynamoDbClient = dynamoDbClient; 
+            _dynamoDbClient = Helper.CreateDynamoDBClient();
         }
 
-        //login function
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest loginRequest)
         {
-            var isValidUser = await ValidateUserAsync(loginRequest.Username, loginRequest.Password);
-
-            if (isValidUser)
+            if (loginRequest == null || string.IsNullOrEmpty(loginRequest.Username) || string.IsNullOrEmpty(loginRequest.Password))
             {
-                return Ok(new { Message = "Login successful" });
+                return BadRequest("Invalid login request.");
             }
-            else
-            {
-                return Unauthorized(new { Message = "Invalid username or password" });
-            }
-        }
 
-        //validate user credentials
-        private async Task<bool> ValidateUserAsync(string username, string password)
-        {
             try
             {
                 var request = new ScanRequest
                 {
                     TableName = "Users",
-                    FilterExpression = "Username = :u and Password = :p",
+                    FilterExpression = "Username = :username AND Password = :password",
                     ExpressionAttributeValues = new Dictionary<string, AttributeValue>
                     {
-                        { ":u", new AttributeValue { S = username } },
-                        { ":p", new AttributeValue { S = password } }
+                        { ":username", new AttributeValue { S = loginRequest.Username } },
+                        { ":password", new AttributeValue { S = loginRequest.Password } }
                     }
                 };
 
                 var response = await _dynamoDbClient.ScanAsync(request);
 
-                //check if user exists
-                return response.Items.Count > 0;
+                if (response.Items.Count > 0)
+                {
+                    return Ok(new { Message = "Login successful.", UserDetails = response.Items });
+                }
+
+                return Unauthorized(new { Message = "Invalid Username or Password." });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error occurred: {ex.Message}");
-                return false;
+                return StatusCode(500, new { Message = "An error occurred.", Error = ex.Message });
             }
         }
 
         [HttpPost("signup")]
-        public async Task<IActionResult> Signup([FromBody] User signupRequest)
+        public async Task<IActionResult> Signup([FromBody] SignupRequest signupRequest)
         {
+            if (signupRequest == null ||
+                string.IsNullOrEmpty(signupRequest.Email) ||
+                string.IsNullOrEmpty(signupRequest.Username) ||
+                string.IsNullOrEmpty(signupRequest.Password))
+            {
+                return BadRequest("Invalid signup request.");
+            }
+
             try
             {
-                //validate inputs
-                if (string.IsNullOrWhiteSpace(signupRequest.Email) ||
-                    string.IsNullOrWhiteSpace(signupRequest.Username) ||
-                    string.IsNullOrWhiteSpace(signupRequest.Password))
-                {
-                    return BadRequest(new { Message = "All fields are required." });
-                }
+                // Generate a unique identifier for the new user
+                string uid = Guid.NewGuid().ToString();
 
-                //generate a unique Uid for the new user
-                var uid = Guid.NewGuid().ToString();
-
-                //prepare the item to be added
+                // Define user attributes, explicitly initializing empty lists
                 var item = new Dictionary<string, AttributeValue>
         {
             { "Uid", new AttributeValue { S = uid } },
             { "Email", new AttributeValue { S = signupRequest.Email } },
             { "Username", new AttributeValue { S = signupRequest.Username } },
-            { "Password", new AttributeValue { S = signupRequest.Password } }
+            { "Password", new AttributeValue { S = signupRequest.Password } },
+            { "ErrorReports", new AttributeValue { L = new List<AttributeValue> { new AttributeValue { NULL = true } } } },
+            { "Favourites", new AttributeValue { L = new List<AttributeValue> { new AttributeValue { NULL = true } } } }
         };
 
-                //add the item to the DynamoDB table
                 var request = new PutItemRequest
                 {
                     TableName = "Users",
                     Item = item
                 };
 
-                var response = await _dynamoDbClient.PutItemAsync(request);
+                // Add the new user to the table
+                await _dynamoDbClient.PutItemAsync(request);
 
-                //confirm successful signup
-                return Ok(new { Message = "Signup successful", UserId = uid });
+                return Ok(new { Message = "Signup successful.", Uid = uid });
+            }
+            catch (AmazonDynamoDBException ex)
+            {
+                return StatusCode(500, new { Message = "DynamoDB error occurred.", Error = ex.Message });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Message = $"An error occurred while signing up: {ex.Message}" });
+                return StatusCode(500, new { Message = "An error occurred.", Error = ex.Message });
             }
         }
 
 
+
     }
 
-    //request body for login
     public class LoginRequest
     {
+        public string Username { get; set; }
+        public string Password { get; set; }
+    }
+
+    public class SignupRequest
+    {
+        public string Email { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
     }
