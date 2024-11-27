@@ -6,7 +6,7 @@ namespace backend.Repository
     public interface IQuoteRepo
     {
         Task<List<AllQuotes>> GetAllQuotesAsync();
-        Task<bool> AddQuoteAsync(QuoteDTO quote);
+        Task<bool> AddQuoteAsync(string Uid, AddQuoteDTO quote);
         Task<QuoteDTO> GetQuoteById(string Qid);
         Task<bool> PatchQuoteAsync(string Qid, Dictionary<string, string> updatedQuote);
         Task<bool> UpdateQuoteAsync(string Qid, AllQuotes quoteUpdated);
