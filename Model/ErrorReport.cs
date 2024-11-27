@@ -2,7 +2,7 @@
 
 namespace backend.Model
 {
-    [DynamoDBTable("Users")]
+   
     public class ErrorReport
     {
         public string ERid { get; set; }

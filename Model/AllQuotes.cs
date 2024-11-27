@@ -1,13 +1,12 @@
 ﻿using Amazon.DynamoDBv2.DataModel;
 
-namespace backend.Models
+namespace backend.Model
 {
     [DynamoDBTable("AllQuotes")]
     public class AllQuotes
     {
         public string Qid { get; set; }
         public string ApprovalStatus { get; set; }
-        public string Categories { get; set; }
         public string DateSubmitted { get; set; }
         public string FavouritedCount { get; set; }
         public string Quote { get; set; }
