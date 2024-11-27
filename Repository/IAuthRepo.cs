@@ -9,6 +9,7 @@ namespace backend.Repository
         Task<UserDTO> ValidateUserAsync(string username, string password);
         Task<bool> SignupAsync([FromBody] SignupDTO signupRequest);
         Task<bool> PatchUserAsync(string Uid, UserUpdateDTO updatedUser);
+        Task<bool> AdminUpdateUserAsync(string Uid, User updatedUser);
         Task<UserUpdateDTO> GetUserById(string Uid);
         Task<bool> DeleteUserById(string Uid);
     }
