@@ -1,8 +1,7 @@
-﻿using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.Model;
-using backend.Models;
+using backend.Model;
+using backend.Services;
 using Microsoft.AspNetCore.Mvc;
-using System;
+
 
 namespace backend.Controllers
 {
@@ -10,111 +9,109 @@ namespace backend.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
-        private readonly IAmazonDynamoDB _dynamoDbClient;
+        private readonly AuthServices _authServices;
 
-        public AuthController()
+        public AuthController(AuthServices authServices)
         {
-            _dynamoDbClient = Helper.CreateDynamoDBClient();
+            _authServices = authServices;
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest loginRequest)
+        public async Task<IActionResult> Login([FromBody] LoginReqDTO loginRequest)
         {
             if (loginRequest == null || string.IsNullOrEmpty(loginRequest.Username) || string.IsNullOrEmpty(loginRequest.Password))
             {
-                return BadRequest("Invalid login request.");
+                return BadRequest(new { Message = "Invalid login request." });
             }
 
-            try
+            UserDTO userDetails = await _authServices.ValidateUserAsync(loginRequest.Username, loginRequest.Password);
+
+            if (userDetails != null)
             {
-                var request = new ScanRequest
-                {
-                    TableName = "Users",
-                    FilterExpression = "Username = :username AND Password = :password",
-                    ExpressionAttributeValues = new Dictionary<string, AttributeValue>
-                    {
-                        { ":username", new AttributeValue { S = loginRequest.Username } },
-                        { ":password", new AttributeValue { S = loginRequest.Password } }
-                    }
-                };
-
-                var response = await _dynamoDbClient.ScanAsync(request);
-
-                if (response.Items.Count > 0)
-                {
-                    return Ok(new { Message = "Login successful.", UserDetails = response.Items });
-                }
-
-                return Unauthorized(new { Message = "Invalid Username or Password." });
+                return Ok(userDetails);
             }
-            catch (Exception ex)
+            else
             {
-                return StatusCode(500, new { Message = "An error occurred.", Error = ex.Message });
+                return Unauthorized(new { Message = "Invalid username or password." });
             }
-        }
 
+       
+        //signup
         [HttpPost("signup")]
-        public async Task<IActionResult> Signup([FromBody] SignupRequest signupRequest)
+        public async Task<IActionResult> Signup([FromBody] SignupDTO signupRequest)
         {
-            if (signupRequest == null ||
-                string.IsNullOrEmpty(signupRequest.Email) ||
-                string.IsNullOrEmpty(signupRequest.Username) ||
-                string.IsNullOrEmpty(signupRequest.Password))
+            if (signupRequest == null || string.IsNullOrWhiteSpace(signupRequest.Email) ||
+                string.IsNullOrWhiteSpace(signupRequest.Username) ||
+                string.IsNullOrWhiteSpace(signupRequest.Password))
             {
-                return BadRequest("Invalid signup request.");
+                return BadRequest("All fields are required.");
             }
 
-            try
+            Boolean response = await _authServices.SignupAsync(signupRequest);
+
+            if(response)
             {
-                // Generate a unique identifier for the new user
-                string uid = Guid.NewGuid().ToString();
+                return Ok(new { Message = "Signup successful"});
 
-                // Define user attributes, explicitly initializing empty lists
-                var item = new Dictionary<string, AttributeValue>
-        {
-            { "Uid", new AttributeValue { S = uid } },
-            { "Email", new AttributeValue { S = signupRequest.Email } },
-            { "Username", new AttributeValue { S = signupRequest.Username } },
-            { "Password", new AttributeValue { S = signupRequest.Password } },
-            { "ErrorReports", new AttributeValue { L = new List<AttributeValue> { new AttributeValue { NULL = true } } } },
-            { "Favourites", new AttributeValue { L = new List<AttributeValue> { new AttributeValue { NULL = true } } } }
-        };
-
-                var request = new PutItemRequest
-                {
-                    TableName = "Users",
-                    Item = item
-                };
-
-                // Add the new user to the table
-                await _dynamoDbClient.PutItemAsync(request);
-
-                return Ok(new { Message = "Signup successful.", Uid = uid });
             }
-            catch (AmazonDynamoDBException ex)
-            {
-                return StatusCode(500, new { Message = "DynamoDB error occurred.", Error = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { Message = "An error occurred.", Error = ex.Message });
-            }
+             
+            return StatusCode(500, new { Message = "User already exists. Please signup with a different username and email." });
         }
 
+        //user can change their email and password
+        [HttpPatch("user-update/{Uid}")]
+        public async Task<IActionResult> Update([FromRoute] string Uid, [FromBody] UserUpdateDTO userUpdate)
+        {
+            if (userUpdate == null || string.IsNullOrWhiteSpace(userUpdate.Email) ||
+                string.IsNullOrWhiteSpace(userUpdate.Password))
+            {
+                return BadRequest( new { Message = "All fields are required." });
+            }
+
+            Boolean r = await _authServices.PatchUserAsync(Uid, userUpdate);
+
+            if (r)
+            {
+                return Ok( new { Message = "Account updated successfully." });
+            }
+            
+
+            return StatusCode(500, new { Message = "User already exists. Please signup with a different username and email." });
+        }
+
+        //admin update accounts
+        [HttpPut("admin-update/{Uid}")]
+        public async Task<IActionResult> AdminUpdate([FromRoute] string Uid, [FromBody] User userUpdate)
+        {
+            if (userUpdate == null || string.IsNullOrWhiteSpace(userUpdate.Email) ||
+                string.IsNullOrWhiteSpace(userUpdate.Password))
+            {
+                return BadRequest(new { Message = "All fields are required." });
+            }
+
+            Boolean r = await _authServices.AdminUpdateUserAsync(Uid, userUpdate);
+
+            if (r)
+            {
+                return Ok(new { Message = "Account updated successfully." });
+            }
 
 
-    }
+            return StatusCode(500, new { Message = "User already exists. Please signup with a different username and email." });
+        }
 
-    public class LoginRequest
-    {
-        public string Username { get; set; }
-        public string Password { get; set; }
-    }
+        //consider
+        //delete user by id
+        [HttpDelete("remove/{Uid}")]
+        public async Task<IActionResult> Delete([FromRoute] string Uid)
+        {
+            Boolean r = await _authServices.DeleteUserById(Uid);
 
-    public class SignupRequest
-    {
-        public string Email { get; set; }
-        public string Username { get; set; }
-        public string Password { get; set; }
+            if (r)
+            {
+                return Ok(new { Message = "User has been deleted." });
+            }
+            return StatusCode(500, new { Message = "User doesn't exist." });
+        }
     }
 }

@@ -11,5 +11,6 @@ namespace backend.Model
         public string Password { get; set; }
         public List<ErrorReport> ErrorReports { get; set; } = new List<ErrorReport>();
         public List<Favourite> Favourites { get; set; } = new List<Favourite>();
+        public string UserRole { get; set; }
     }
 }

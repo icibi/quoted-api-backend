@@ -1,5 +1,7 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using backend.Repository;
+using backend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +21,11 @@ builder.Services.AddSingleton<IDynamoDBContext>(sp =>
     return new DynamoDBContext(dynamoDbClient); // Use DynamoDBContext implementation
 });
 
+//register the repositories
+builder.Services.AddSingleton<IQuoteRepo, QuoteService>();
+builder.Services.AddSingleton<IAuthRepo, AuthServices>();
+builder.Services.AddSingleton<IFavRepo, FavouriteService>();
+
 // Add CORS services
 builder.Services.AddCors(options =>
 {
@@ -34,6 +41,15 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+
+builder.Services.AddScoped<QuoteService>();
+builder.Services.AddScoped<FavouriteService>();
+builder.Services.AddScoped<AuthServices>();
+builder.Services.AddControllers();
+
+
 
 var app = builder.Build();
 
