@@ -1,6 +1,7 @@
-﻿using backend.Model;
+using backend.Model;
 using backend.Services;
 using Microsoft.AspNetCore.Mvc;
+
 
 namespace backend.Controllers
 {
@@ -15,7 +16,6 @@ namespace backend.Controllers
             _authServices = authServices;
         }
 
-        //login function
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginReqDTO loginRequest)
         {
@@ -34,7 +34,6 @@ namespace backend.Controllers
             {
                 return Unauthorized(new { Message = "Invalid username or password." });
             }
-        }
 
        
         //signup
@@ -53,6 +52,7 @@ namespace backend.Controllers
             if(response)
             {
                 return Ok(new { Message = "Signup successful"});
+
             }
              
             return StatusCode(500, new { Message = "User already exists. Please signup with a different username and email." });
